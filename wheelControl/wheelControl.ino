@@ -2,6 +2,8 @@
 #include <SPI.h>
 #include <EEPROM.h>
 
+#include
+
 //Encoder
 #define CLR B00000000
 #define RD B01000000
