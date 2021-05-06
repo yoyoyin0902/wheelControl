@@ -2,7 +2,6 @@
 #include <SPI.h>
 #include <EEPROM.h>
 
-#include
 
 //Encoder
 #define CLR B00000000
@@ -22,13 +21,13 @@
 // ========================== Motor ===========================
 #define Motor_enable 18
 #define Motor_Brake 19
-#define MotorA_PWM 9
+#define MotorA_PWM A9
 #define MotorA_dir 8
-#define MotorB_PWM 7
+#define MotorB_PWM A7
 #define MotorB_dir 6
-#define MotorC_PWM 5
+#define MotorC_PWM A5
 #define MotorC_dir 4
-#define MotorD_PWM 3
+#define MotorD_PWM A3
 #define MotorD_dir 2
 // ========================== Motor ===========================
 
@@ -250,8 +249,8 @@ void PID_function(){
   error_left_I += error_Left * 0.001; //未來的偏差量
   error_right_I += error_Right * 0.001; //未來的偏差量
   //馬達旋轉量(Turn) = Kp * (現在的偏差量) + Ki * (過去的偏差量) + Kd * (未來的偏差量)
-  double Ul = KP * error_Left + Kd * (error_Left - pre_vl_error) + error_left_I * KI;
-  double Ur = KP * error_Right + Kd * (error_Left - pre_vr_error) + KI * error_right_I;
+  double Ul = KP * error_Left + Kd * (error_Left - pre_vl_error) /*+ error_left_I * KI*/;
+  double Ur = KP * error_Right + Kd * (error_Left - pre_vr_error)/* + KI * error_right_I*/;
   pre_vl_error = error_l;
   pre_vr_error = error_r;
 
@@ -262,21 +261,39 @@ void PID_function(){
   } else {
     digitalWrite(BK, LOW);
   }
-  new_VtoPwm( Ul, DL, PWM_L);
-  new_VtoPwm( Ur, DR, PWM_R);
+  new_VtoPwm( Ul, DL, PWM_L); //送出新的速度
+  new_VtoPwm( Ur, DR, PWM_R); //送出新的速度
   
 }
 /**************************PID************************************/
 
 /**************************SetPWM************************************/
-void  new_VtoPwm(double Ul, int pin_direction, int pin_PWM){
+void  new_VtoPwm(double V, int pin_direction, int pin_PWM){
  int  max_pwm = 4096;
  if(pin_direction == DL){
    if(V > 0){
-    
+     digitalWrite(pin_direction, LOW);
+     int _rpm = (V > max_pwm) ? max_pwm : V;
+     analogWrite(pin_PWM,_rpm);
    }
- }
-
+   else{
+    digitalWrite(pin_direction, HIGH);
+    V= V * -1;
+    int _pwm = (V > max_pwm) ? max_pwm : V;
+    analogWrite(pin_PWM,_pwm);    
+   }
+ }else{
+   if(V > 0){
+      digitalWrite(pin_direction,HIGH);
+      int _pwm = (V > max_pwm) ? max_pwm : V;
+      analogWrite(pin_PWM,_pwm);  
+   }else{
+      digitalWrite(pin_direction,LOW);
+      V = V * -1;
+      int _pwm = (V > max_pwm) ? max_pwm : V;
+      analogWrite(pin_PWM, _pwm);
+    }  
+  }
 }
 
 
