@@ -431,9 +431,9 @@ void receiveConnect()
 
 void serialEvent()
 {
-    if(Serial1.available() > 0)
+    if(Serial.available() > 0)
     {
-        unsigned char data = Serial1.read();
+        unsigned char data = Serial.read();
         //Serial.println(data);
         if(data == 'S' && count == 0)
         {
