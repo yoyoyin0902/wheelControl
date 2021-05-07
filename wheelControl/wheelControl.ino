@@ -53,7 +53,6 @@ double old_want_right = 0;
 // ========================== SPI =============================
 
 // ========================== 里程計 PID ===========================
-double w_z = 0;
 double vl = 0, vr = 0;
 Interval Timer myTimer , speed_timer;
 double _want_vl = 0, _want_vr = 0;
@@ -65,7 +64,7 @@ double pre_vl_error = 0, pre_vr_error = 0;
 
 // ========================== Parameter ===========================
 double Two_Wheel_Length = 0.8;             // 兩輪間距 (m) < 寫ROM >
-const float Wheel_R = 0.145                 // 輪半徑   (m)
+const float Wheel_R = 0.145                 // 輪半徑  (m)
 const float Unit_Pulse = 2000;              // 一圈Pulse總數
 const float ADJUST_R_WHEEL_RATE = 1.0;      // 左排輪子校正係數
 const float ADJUST_L_WHEEL_RATE = 1.0;      // 右排輪子校正係數
@@ -79,11 +78,13 @@ bool isBreaking = false;
 int max_rpm = 2500;
 
 //V & W
-int V_now = 0, W_now = 0, V_last = 0, W_last = 0;
-int now_Vl = 0,now_Vr;
+//int V_now = 0, W_now = 0, V_last = 0, W_last = 0;
+//int now_Vl = 0,now_Vr;
+double v_right = 0;
+double v_left = 0;
 
 //encoder
-int st_v = 0,nd_v = 0,rd_v = 0,th_v = 0;
+//int st_v = 0,nd_v = 0,rd_v = 0,th_v = 0;
 
 
 
@@ -93,9 +94,9 @@ int count = 0;
 int connection = -1;//判斷連線
 int con_check = -1;//判斷連線
 int mode = 0;
-double vx;//上層速度x
-double vy;//上層速度y
-double w;//上層w
+double vx;//上層給速度x
+double vy;//上層給速度y(不用)
+double w;//上層給w
 
 // ========================== ReceivePackage ===========================
 
@@ -126,6 +127,11 @@ void setup() {
   pinMode(Motor_Brake, OUTPUT);
   digitalWrite(Motor_enable, LOW);
   digitalWrite(Motor_Brake, LOW);
+
+
+  //速度PID
+  speed_timer.begin(PID_function, 1000);
+  
   //SPI
   pinMode(CS1, OUTPUT);
   pinMode(CS3, OUTPUT);
@@ -140,90 +146,90 @@ void setup() {
 }
 
 void loop() {
+  receiveConnect();
 
   
-  motor_Control(VelocityLeft, VelocityRight);
+  //motor_Control(VelocityLeft, VelocityRight);
 } 
 
 
 
-void MakeUpVelocity() {
-  //isBreaking
-  if(isBreaking){ 
-     V_now  = 0; 
-     W_now  = 0; 
-     V_last = 0; 
-     W_last = 0; 
-     st_v = 0;
-     nd_v = 0;
-     rd_v = 0;
-     th_v = 0; 
-  }  
-  else{  //做加減速
-    if(V_now - V_last) != 0){
-       int V_range = V_now - V_last;
-       if(V_range != 0){
-        if(V_range > 0)
-          V_last +=1;
-        else
-          V_last -=1;
-       }   
-    }
-    if(W_now != W_last){
-      int W_range = W_now - W_last; 
-      if (W_range != 0){
-        if (W_range > 0)
-          W_last += 1;
-        else
-          W_last -= 1;
-      }
-    }
-    Two_Wheel_Kinematics(V_last, W_last); //差速輪
-    if(V_left > 0){
-      digitalWrite(MotorA_dir,HIGH);
-      digitalWrite(MotorD_dir,LOW);
-      st_v = V_left;
-      th_v = V_left; 
-    }
-    else{
-      digitalWrite(MotorA_dir,LOW);
-      digitalWrite(MotorD_dir,HIGH);
-      st_v = -1 * V_left;
-      th_v = -1 * V_left;
-    }
-    if(V_right > 0){
-      digitalWrite(MotorC_dir,LOW);
-      digitalWrite(MotorB_dir,LOW); 
-      nd_v = V_right;
-      rd_v = V_right;     
-    }
-    else{
-      digitalWrite(MotorC_dir,HIGH);
-      digitalWrite(MotorB_dir,HIGH);
-      st_v = -1 * V_right;
-      th_v = -1 * V_right;
-    }
-  }
-}
+//void MakeUpVelocity() {
+//  //isBreaking
+//  if(isBreaking){ 
+//     V_now  = 0; 
+//     W_now  = 0; 
+//     V_last = 0; 
+//     W_last = 0; 
+//     st_v = 0;
+//     nd_v = 0;
+//     rd_v = 0;
+//     th_v = 0; 
+//  }  
+//  else{  //做加減速
+//    if(V_now - V_last) != 0){
+//       int V_range = V_now - V_last;
+//       if(V_range != 0){
+//        if(V_range > 0)
+//          V_last +=1;
+//        else
+//          V_last -=1;
+//       }   
+//    }
+//    if(W_now != W_last){
+//      int W_range = W_now - W_last; 
+//      if (W_range != 0){
+//        if (W_range > 0)
+//          W_last += 1;
+//        else
+//          W_last -= 1;
+//      }
+//    }
+//    Two_Wheel_Kinematics(V_last, W_last); //差速輪
+//    if(V_left > 0){
+//      digitalWrite(MotorA_dir,HIGH);
+//      digitalWrite(MotorD_dir,LOW);
+//      st_v = V_left;
+//      th_v = V_left; 
+//    }
+//    else{
+//      digitalWrite(MotorA_dir,LOW);
+//      digitalWrite(MotorD_dir,HIGH);
+//      st_v = -1 * V_left;
+//      th_v = -1 * V_left;
+//    }
+//    if(V_right > 0){
+//      digitalWrite(MotorC_dir,LOW);
+//      digitalWrite(MotorB_dir,LOW); 
+//      nd_v = V_right;
+//      rd_v = V_right;     
+//    }
+//    else{
+//      digitalWrite(MotorC_dir,HIGH);
+//      digitalWrite(MotorB_dir,HIGH);
+//      st_v = -1 * V_right;
+//      th_v = -1 * V_right;
+//    }
+//  }
+//}
 
 
 
-void cycle_function(){
-//    float _v = 0.5; //encoder
-//    float Circle_Time = 2.0 * Wheel_R * PI / _v; // 一圈週期(s)
-//    float Per_Sec_Pulse = Unit_Pulse / Circle_Time; // 1秒pulse 
-  Per_Sec_Pulse_list[0] = (st_v == ? 0 : floor(Unit_Pulse / (2.0 * Wheel_R * 3.14 / st_v)) / 100 / 100);
-  Per_Sec_Pulse_list[1] = (nd_v == ? 0 : floor(Unit_Pulse / (2.0 * Wheel_R * 3.14 / nd_v)) / 100 / 100);
-  Per_Sec_Pulse_list[2] = (rd_v == ? 0 : floor(Unit_Pulse / (2.0 * Wheel_R * 3.14 / rd_v)) / 100 / 100);
-  Per_Sec_Pulse_list[3] = (th_v == ? 0 : floor(Unit_Pulse / (2.0 * Wheel_R * 3.14 / th_v)) / 100 / 100);
-
-  for(int k = 0;k <4 ;++k)增量式编码器0
-}
-
-
+//void cycle_function(){
+////    float _v = 0.5; //encoder
+////    float Circle_Time = 2.0 * Wheel_R * PI / _v; // 一圈週期(s)
+////    float Per_Sec_Pulse = Unit_Pulse / Circle_Time; // 1秒pulse 
+//  Per_Sec_Pulse_list[0] = (st_v == ? 0 : floor(Unit_Pulse / (2.0 * Wheel_R * 3.14 / st_v)) / 100 / 100);
+//  Per_Sec_Pulse_list[1] = (nd_v == ? 0 : floor(Unit_Pulse / (2.0 * Wheel_R * 3.14 / nd_v)) / 100 / 100);
+//  Per_Sec_Pulse_list[2] = (rd_v == ? 0 : floor(Unit_Pulse / (2.0 * Wheel_R * 3.14 / rd_v)) / 100 / 100);
+//  Per_Sec_Pulse_list[3] = (th_v == ? 0 : floor(Unit_Pulse / (2.0 * Wheel_R * 3.14 / th_v)) / 100 / 100);
+//
+//  for(int k = 0;k <4 ;++k)增量式编码器0
+//}
 
 
-//Call by reference
+
+
 void Two_Wheel_Kinematics(double v,double w)/*float &v_left, float &v_right*/ 
 { 
   //w強制在同為正或同為負時 避免車子正負狀態時自旋
@@ -235,8 +241,8 @@ void Two_Wheel_Kinematics(double v,double w)/*float &v_left, float &v_right*/
     v_right = v + (-1 * ceil((double)(abs(w) * Two_Wheel_Length) / 2.0));
     v_left = v - (-1 * ceil((double)(abs(w) * Two_Wheel_Length) / 2.0));
   }
-  v_right = v_right * ADJUST_R_WHEEL_RATE;
-  v_left  = v_left * ADJUST_L_WHEEL_RATE; 
+  _want_vr = v_right * ADJUST_R_WHEEL_RATE; //運動學後值
+  _want_vl  = v_left * ADJUST_L_WHEEL_RATE;  //運動學後值
 }
 
 /**************************PID************************************/
@@ -378,30 +384,30 @@ void send_data(double X_w, double Y_w, double T, double _vl, double _vr){
 /**************************Send里程************************************/
 
 /**************************EncoderReceive************************************/
-void motor_Control(const float v_left, const float v_right) 
-{
-   PWM_Right_Control = (v_right /max_rpm)*4095;
-   PWM_Left_Control = (v_left /max_rpm)*4095;
-   analogWrite(MotorA_PWM,PWM_Right_Control);
-   analogWrite(MotorB_PWM,PWM_Left_Control);
-   analogWrite(MotorC_PWM,PWM_Right_Control);
-   analogWrite(MotorD_PWM,PWM_Left_Control);
-}
+//void motor_Control(const float v_left, const float v_right) 
+//{
+//   PWM_Right_Control = (v_right /max_rpm)*4095;
+//   PWM_Left_Control = (v_left /max_rpm)*4095;
+//   analogWrite(MotorA_PWM,PWM_Right_Control);
+//   analogWrite(MotorB_PWM,PWM_Left_Control);
+//   analogWrite(MotorC_PWM,PWM_Right_Control);
+//   analogWrite(MotorD_PWM,PWM_Left_Control);
+//}
 
-void serialEvent() 
-{
-  receive_package();
-//  if (Serial.available() > 0) {
-//    rxBuffer[rxIndex++] = Serial.read();
-//    if (rxBuffer[rxIndex - 1] == '\n') {
-//      Serial.println("received!!!");
-//      rxBuffer[rxIndex] = '\0';
-//      Speed = atoi(rxBuffer);
-//      Serial.println(Speed);
-//      rxIndex = 0;
-//    }
-//  }
-}
+//void serialEvent() 
+//{
+//  receive_package();
+////  if (Serial.available() > 0) {
+////    rxBuffer[rxIndex++] = Serial.read();
+////    if (rxBuffer[rxIndex - 1] == '\n') {
+////      Serial.println("received!!!");
+////      rxBuffer[rxIndex] = '\0';
+////      Speed = atoi(rxBuffer);
+////      Serial.println(Speed);
+////      rxIndex = 0;
+////    }
+////  }
+//}
 
 /**************************ReceivePackage************************************/
 void receiveConnect()
@@ -495,6 +501,10 @@ void serialEvent()
                 vx = re_vx - 100;//拿去用
                 vy = re_vy - 100;//拿去用
                 w = re_w - 100;//拿去用
+                Serial.print(vx);
+                Serial.print(" ");
+                Serial.println(vy);
+                Two_Wheel_Kinematics(vx, vy); //進差速輪運動學
             }
         }
         else
