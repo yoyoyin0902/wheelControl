@@ -1,6 +1,7 @@
 #include <Timer1.h>
 #include <SPI.h>
 #include <EEPROM.h>
+#include <Math.h>
 
 
 //Encoder
@@ -8,8 +9,6 @@
 #define RD B01000000
 #define WR B10000000
 #define LOAD B11000000
-#include "Math.h"
-
 #define MDR0 B00001000
 #define MDR1 B00010000
 #define DTR B00011000
@@ -21,26 +20,25 @@
 // ========================== Motor ===========================
 #define Motor_enable 18
 #define Motor_Brake 19
-#define MotorA_PWM A9
+#define MotorA_PWM 9
 #define MotorA_dir 8
-#define MotorB_PWM A7
+#define MotorB_PWM 7
 #define MotorB_dir 6
-#define MotorC_PWM A5
+#define MotorC_PWM 5
 #define MotorC_dir 4
-#define MotorD_PWM A3
+#define MotorD_PWM 3
 #define MotorD_dir 2
 // ========================== Motor ===========================
 
 // ========================== SPI =============================
 #define CS1 10
 #define CS3 22
+
 long count_CSLeft = 0;
 long count_CSRight = 0;
-
 long count_CSLeft_old = 0;
 long count_CSRight_old = 0;
 
-double gyro_wz = 0;
 
 double theta = 0;
 double x_world = 0;
@@ -54,7 +52,7 @@ double old_want_right = 0;
 
 // ========================== 里程計 PID ===========================
 double vl = 0, vr = 0;
-Interval Timer myTimer , speed_timer;
+IntervalTimer myTimer , speed_timer;
 double _want_vl = 0, _want_vr = 0;
 double _now_vl = 0 , _now_vr = 0;
 double pre_vl_error = 0, pre_vr_error = 0;
@@ -70,7 +68,7 @@ const float ADJUST_R_WHEEL_RATE = 1.0;      // 左排輪子校正係數
 const float ADJUST_L_WHEEL_RATE = 1.0;      // 右排輪子校正係數
 // ========================== Parameter ===========================
 
-long Per_Sec_Pulse_list[4] = {0, 0, 0, 0};
+//long Per_Sec_Pulse_list[4] = {0, 0, 0, 0};
 
 //break
 bool isBreaking = false;
@@ -85,6 +83,11 @@ double v_left = 0;
 
 //encoder
 //int st_v = 0,nd_v = 0,rd_v = 0,th_v = 0;
+
+//PID
+double KP = 1;
+double Kd = 1;
+double KI = 1;
 
 
 
@@ -247,9 +250,6 @@ void Two_Wheel_Kinematics(double v,double w)/*float &v_left, float &v_right*/
 
 /**************************PID************************************/
 void PID_function(){
-  double KP = 1;
-  double Kd = 1;
-  double KI = 1;
   double error_Left = _want_vl - _now_vl; //左車與左encoder回傳值差
   double error_Right = _want_vr - _now_vr; //右車與右encoder回傳值差
   error_left_I += error_Left * 0.001; //未來的偏差量
@@ -260,44 +260,48 @@ void PID_function(){
   pre_vl_error = error_l;
   pre_vr_error = error_r;
 
-  if (_want_vl == 0 && _want_vr == 0 && fabs(Ur) < 150 && fabs(Ul) < 150 ) {
+  if (_want_vl == 0 && _want_vr == 0 && fabs(Ur) < 150 && fabs(Ul) < 150 ) { //_want_v 運動學後
     digitalWrite(BK, HIGH); 
     error_left_I = 0;
     error_right_I = 0;
   } else {
     digitalWrite(BK, LOW);
   }
-  new_VtoPwm( Ul, DL, PWM_L); //送出新的速度
-  new_VtoPwm( Ur, DR, PWM_R); //送出新的速度
+  new_VtoPwm( Ul, DL, MotorA_PWM,MotorB_PWM); //送出新的速度
+  new_VtoPwm( Ur, DR, MotorC_PWM,MotorD_PWM); //送出新的速度
   
 }
 /**************************PID************************************/
 
 /**************************SetPWM************************************/
-void  new_VtoPwm(double V, int pin_direction, int pin_PWM){
- int  max_pwm = 4096;
+void  new_VtoPwm(double V, int pin_direction, int pin_PWML1,int pin_PWML2){
+ int  max_pwm = 4000;
  if(pin_direction == DL){
    if(V > 0){
      digitalWrite(pin_direction, LOW);
      int _rpm = (V > max_pwm) ? max_pwm : V;
-     analogWrite(pin_PWM,_rpm);
+     analogWrite(pin_PWML1,_rpm);
+     analogWrite(pin_PWML2,_rpm);
    }
    else{
     digitalWrite(pin_direction, HIGH);
     V= V * -1;
     int _pwm = (V > max_pwm) ? max_pwm : V;
-    analogWrite(pin_PWM,_pwm);    
+    analogWrite(pin_PWML1,_rpm);
+    analogWrite(pin_PWML2,_rpm);    
    }
  }else{
    if(V > 0){
       digitalWrite(pin_direction,HIGH);
       int _pwm = (V > max_pwm) ? max_pwm : V;
-      analogWrite(pin_PWM,_pwm);  
+      analogWrite(pin_PWML1,_rpm);
+      analogWrite(pin_PWML2,_rpm);  
    }else{
       digitalWrite(pin_direction,LOW);
       V = V * -1;
       int _pwm = (V > max_pwm) ? max_pwm : V;
-      analogWrite(pin_PWM, _pwm);
+      analogWrite(pin_PWML1,_rpm);
+      analogWrite(pin_PWML2,_rpm);
     }  
   }
 }
@@ -397,16 +401,16 @@ void send_data(double X_w, double Y_w, double T, double _vl, double _vr){
 //void serialEvent() 
 //{
 //  receive_package();
-////  if (Serial.available() > 0) {
-////    rxBuffer[rxIndex++] = Serial.read();
-////    if (rxBuffer[rxIndex - 1] == '\n') {
-////      Serial.println("received!!!");
-////      rxBuffer[rxIndex] = '\0';
-////      Speed = atoi(rxBuffer);
-////      Serial.println(Speed);
-////      rxIndex = 0;
-////    }
-////  }
+//  if (Serial.available() > 0) {
+//    rxBuffer[rxIndex++] = Serial.read();
+//    if (rxBuffer[rxIndex - 1] == '\n') {
+//      Serial.println("received!!!");
+//      rxBuffer[rxIndex] = '\0';
+//      Speed = atoi(rxBuffer);
+//      Serial.println(Speed);
+//      rxIndex = 0;
+//    }
+//  }
 //}
 
 /**************************ReceivePackage************************************/
