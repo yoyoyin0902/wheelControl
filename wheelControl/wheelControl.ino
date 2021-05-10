@@ -1,4 +1,3 @@
-#include <Timer1.h>
 #include <SPI.h>
 #include <EEPROM.h>
 #include <Math.h>
@@ -56,13 +55,12 @@ IntervalTimer myTimer , speed_timer;
 double _want_vl = 0, _want_vr = 0;
 double _now_vl = 0 , _now_vr = 0;
 double pre_vl_error = 0, pre_vr_error = 0;
-double pre_vl_error = 0, pre_vr_error = 0;
 // ========================== 里程計 PID ===========================
 
 
 // ========================== Parameter ===========================
 double Two_Wheel_Length = 0.8;             // 兩輪間距 (m) < 寫ROM >
-const float Wheel_R = 0.145                 // 輪半徑  (m)
+const float Wheel_R = 0.145;                 // 輪半徑  (m)
 const float Unit_Pulse = 2000;              // 一圈Pulse總數
 const float ADJUST_R_WHEEL_RATE = 1.0;      // 左排輪子校正係數
 const float ADJUST_L_WHEEL_RATE = 1.0;      // 右排輪子校正係數
@@ -107,7 +105,6 @@ int input;
 char rxBuffer[128];
 int rxIndex = 0;
 float VelocityLeft,VelocityRight;
-Interval Timer myTimer;
 
 
 void setup() {
@@ -139,13 +136,12 @@ void setup() {
   pinMode(CS1, OUTPUT);
   pinMode(CS3, OUTPUT);
   myTimer.begin(encoder_receive,1000);
+  
   digitalWrite(CS1, LOW);
   digitalWrite(CS3, LOW);
   SPI.transfer(CLR | CNTR);
   digitalWrite(CS1, HIGH);
   digitalWrite(CS3, HIGH);
-  
-
 }
 
 void loop() {
@@ -257,51 +253,55 @@ void PID_function(){
   //馬達旋轉量(Turn) = Kp * (現在的偏差量) + Ki * (過去的偏差量) + Kd * (未來的偏差量)
   double Ul = KP * error_Left + Kd * (error_Left - pre_vl_error) /*+ error_left_I * KI*/;
   double Ur = KP * error_Right + Kd * (error_Left - pre_vr_error)/* + KI * error_right_I*/;
-  pre_vl_error = error_l;
-  pre_vr_error = error_r;
+  pre_vl_error = error_Left;
+  pre_vr_error = error_Right;
 
   if (_want_vl == 0 && _want_vr == 0 && fabs(Ur) < 150 && fabs(Ul) < 150 ) { //_want_v 運動學後
-    digitalWrite(BK, HIGH); 
+    digitalWrite(Motor_Brake, HIGH); 
     error_left_I = 0;
     error_right_I = 0;
   } else {
-    digitalWrite(BK, LOW);
+    digitalWrite(Motor_Brake, LOW);
   }
-  new_VtoPwm( Ul, DL, MotorA_PWM,MotorB_PWM); //送出新的速度
-  new_VtoPwm( Ur, DR, MotorC_PWM,MotorD_PWM); //送出新的速度
+  new_VtoPwm( Ul, MotorA_dir, MotorB_dir, MotorA_PWM,MotorB_PWM); //送出新的速度
+  new_VtoPwm( Ur, MotorC_dir, MotorC_dir, MotorC_PWM,MotorD_PWM); //送出新的速度
   
 }
 /**************************PID************************************/
 
 /**************************SetPWM************************************/
-void  new_VtoPwm(double V, int pin_direction, int pin_PWML1,int pin_PWML2){
+void  new_VtoPwm(double V, int pin_direction1, int pin_direction2, int pin_PWM1,int pin_PWM2){
  int  max_pwm = 4000;
- if(pin_direction == DL){
+ if(pin_direction1 == MotorA_dir && pin_direction2 == MotorB_dir){
    if(V > 0){
-     digitalWrite(pin_direction, LOW);
-     int _rpm = (V > max_pwm) ? max_pwm : V;
-     analogWrite(pin_PWML1,_rpm);
-     analogWrite(pin_PWML2,_rpm);
+     digitalWrite(pin_direction1, LOW);
+     digitalWrite(pin_direction2, LOW);
+     int _pwm = (V > max_pwm) ? max_pwm : V;
+     analogWrite(pin_PWM1,_pwm);
+     analogWrite(pin_PWM2,_pwm);
    }
    else{
-    digitalWrite(pin_direction, HIGH);
+    digitalWrite(pin_direction1, HIGH);
+    digitalWrite(pin_direction2, HIGH);
     V= V * -1;
     int _pwm = (V > max_pwm) ? max_pwm : V;
-    analogWrite(pin_PWML1,_rpm);
-    analogWrite(pin_PWML2,_rpm);    
+    analogWrite(pin_PWM1,_pwm);
+    analogWrite(pin_PWM2,_pwm);    
    }
  }else{
    if(V > 0){
-      digitalWrite(pin_direction,HIGH);
+      digitalWrite(pin_direction1, HIGH);
+      digitalWrite(pin_direction2, HIGH);
       int _pwm = (V > max_pwm) ? max_pwm : V;
-      analogWrite(pin_PWML1,_rpm);
-      analogWrite(pin_PWML2,_rpm);  
+      analogWrite(pin_PWM1,_pwm);
+      analogWrite(pin_PWM2,_pwm);  
    }else{
-      digitalWrite(pin_direction,LOW);
+      digitalWrite(pin_direction1, LOW);
+      digitalWrite(pin_direction2, LOW);
       V = V * -1;
       int _pwm = (V > max_pwm) ? max_pwm : V;
-      analogWrite(pin_PWML1,_rpm);
-      analogWrite(pin_PWML2,_rpm);
+      analogWrite(pin_PWM1,_pwm);
+      analogWrite(pin_PWM2,_pwm);
     }  
   }
 }
@@ -382,7 +382,7 @@ void send_data(double X_w, double Y_w, double T, double _vl, double _vr){
   a[17] =  'C';
   a[18] =  'D';
   for (int i = 0; i < 19; i++) {
-    Serial.write(a[i]);
+    //Serial.write(a[i]);
   }    
 }
 /**************************Send里程************************************/
@@ -422,10 +422,9 @@ void receiveConnect()
     con_count++;
     if(con_count > 10) //超過10次沒更新斷線
     {
-      V_now = 0;
-      W_now = 0;
-      V_last = 0;
-      W_last = 0;
+      vx = 0;
+      vy = 0;
+       w = 0;
       con_count = 0;
     }
     con_check = connection;
