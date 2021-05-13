@@ -1,7 +1,5 @@
 #include <SPI.h>
 #include <EEPROM.h>
-#include <Math.h>
-
 
 //Encoder
 #define CLR B00000000
@@ -125,29 +123,27 @@ void setup() {
   //enable break
   pinMode(Motor_enable, OUTPUT);
   pinMode(Motor_Brake, OUTPUT);
+  //SPI
+  pinMode(CS1, OUTPUT);
+  pinMode(CS3, OUTPUT);
+  
   digitalWrite(Motor_enable, LOW);
   digitalWrite(Motor_Brake, LOW);
 
 
-  //速度PID
+  //速度PID_timer
   speed_timer.begin(PID_function, 1000);
-  
-  //SPI
-  pinMode(CS1, OUTPUT);
-  pinMode(CS3, OUTPUT);
-  myTimer.begin(encoder_receive,1000);
-  
-  digitalWrite(CS1, LOW);
-  digitalWrite(CS3, LOW);
-  SPI.transfer(CLR | CNTR);
+  //Encoder_timer
+  myTimer.begin(encoder_receive,1000);  
   digitalWrite(CS1, HIGH);
   digitalWrite(CS3, HIGH);
+  SPI.transfer(CLR | CNTR);
+  digitalWrite(CS1, LOW);
+  digitalWrite(CS3, LOW);
 }
 
 void loop() {
-  receiveConnect();
-
-  
+  receiveConnect(); 
   //motor_Control(VelocityLeft, VelocityRight);
 } 
 
@@ -338,7 +334,7 @@ void encoder_receive(){ //里程計累積function 1ms running
 long CS(int pin)
 {
   long count = 0;
-  digitalWrite(pin, LOW);
+  digitalWrite(pin, HIGH);
   byte b = SPI.transfer((byte) RD | CNTR);
   count = SPI.transfer(0x00);
   count <<= 8;
@@ -347,7 +343,7 @@ long CS(int pin)
   count |= SPI.transfer(0x00);
   count <<= 8;
   count |= SPI.transfer(0x00);
-  digitalWrite(pin, HIGH);
+  digitalWrite(pin, LOW);
   return count;
 }
 /**************************Send里程************************************/
