@@ -1,5 +1,5 @@
 #include <SPI.h>
-#include <EEPROM.h>
+//#include <EEPROM.h>
 
 //Encoder
 #define CLR B00000000
@@ -107,6 +107,7 @@ float VelocityLeft,VelocityRight;
 
 void setup() {
   Serial.begin(115200);
+  Serial1.begin(115200);
   Serial.println("Start...");
   SPI.begin();
   analogWriteResolution(12); //ADC解析度調整為12bit 0.00122
@@ -238,6 +239,9 @@ void Two_Wheel_Kinematics(double v,double w)/*float &v_left, float &v_right*/
   }
   _want_vr = v_right * ADJUST_R_WHEEL_RATE; //運動學後值
   _want_vl  = v_left * ADJUST_L_WHEEL_RATE;  //運動學後值
+  Serial1.print(_want_vr);
+  Serial1.print(" ");
+  Serial1.println(_want_vl);
 }
 
 /**************************PID************************************/
@@ -307,18 +311,17 @@ void  new_VtoPwm(double V, int pin_direction1, int pin_direction2, int pin_PWM1,
 
 
 /**************************EncoderReceive************************************/
-double ressolution = 0.3 * PI / 4000.0; // 輪胎圓周(m)/一圈轉幾格pulse //原本4000但encoder 怪怪的
+double ressolution = Wheel_R * 2 * PI / 4000.0; // 輪胎圓周(m)/一圈轉幾格pulse //原本4000但encoder 怪怪的
 void encoder_receive(){ //里程計累積function 1ms running
-   count_CSRight = CS(CS3);
+   count_CSRight = CS(CS3); //encoder 讀取值
    count_CSLeft = CS(CS1);
-   long count_CSL_dis = count_CSLeft - count_CSLeft_old;
+   long count_CSL_dis = count_CSLeft - count_CSLeft_old; //輪子pluse數
    long count_CSR_dis = count_CSRight - count_CSRight_old;
 
    //回授的速度
    double vl = count_CSL_dis * 100.0 * ressolution / 0.001; //單位 cm/s(速度) 
    double vr = count_CSR_dis * 100.0 * ressolution / 0.001; //單位 cm/s(速度)
-//   double rpmLeft = vl * 60.0 / PI * 
-//   double rpmRight = 
+   
    _now_vl = vl;
    _now_vr = vr;
    
@@ -326,6 +329,10 @@ void encoder_receive(){ //里程計累積function 1ms running
    x_world = x_world + ((count_CSL_dis + count_CSR_dis) / 2.0) * ressolution * 100.0 * cos(theta); //單位 cm
    y_world = y_world + ((count_CSL_dis + count_CSR_dis) / 2.0) * ressolution * 100.0 * sin(theta);
    theta = theta - dtheta;
+
+   long rpmRight = fabs(count_CSR_dis / 4000.0 / 0.005 * 60.0); //右轉速(圈/分)
+   long rpmLeft  = fabs(count_CSL_dis / 4000.0 / 0.005 * 60.0); //左轉速(圈/分)
+
    send_data(x_world, y_world, theta, vl, vr);
    count_CSLeft_old = count_CSLeft;
    count_CSRight_old = count_CSRight;   
@@ -500,10 +507,10 @@ void serialEvent()
                 vx = re_vx - 100;//拿去用
                 vy = re_vy - 100;//拿去用
                 w = re_w - 100;//拿去用
-                Serial.print(vx);
-                Serial.print(" ");
-                Serial.println(vy);
-                Two_Wheel_Kinematics(vx, vy); //進差速輪運動學
+                Serial1.print(vx);
+                Serial1.print(" ");
+                Serial1.println(w);
+                Two_Wheel_Kinematics(vx, w); //進差速輪運動學
             }
         }
         else
